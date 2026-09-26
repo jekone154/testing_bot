@@ -299,6 +299,28 @@ class Database(dict):
         super().setdefault(owner, {})[key] = value
         return self.save()
 
+    def __setitem__(self, owner: str, value: JSONSerializable) -> None:
+        """
+        Guard against writing non-JSON-serializable top-level entries directly
+        (e.g. `self._db[owner] = value`), which would otherwise fail silently
+        or corrupt the database only at the next save().
+        """
+        if not utils.is_serializable(owner):
+            raise RuntimeError(
+                "Attempted to write object to "
+                f"{owner=} ({type(owner)=}) of database. It is not "
+                "JSON-serializable key which will cause errors"
+            )
+
+        if not utils.is_serializable(value):
+            raise RuntimeError(
+                "Attempted to write object of "
+                f"{owner=} ({type(value)=}) to database. It is not "
+                "JSON-serializable value which will cause errors"
+            )
+
+        super().__setitem__(owner, value)
+
     def pointer(
         self,
         owner: str,
