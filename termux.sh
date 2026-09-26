@@ -159,9 +159,9 @@ step "Installing requirements..."
 # supported" -- a hard check in its own setup.py, not a missing-compiler
 # issue). Strip it from requirements.txt before handing it to pip so pip
 # never touches it, regardless of --upgrade or version pins.
-grep -vi '^psutil' requirements.txt > /tmp/hikka_requirements_termux.txt
-run pip install -r /tmp/hikka_requirements_termux.txt --no-cache-dir --no-warn-script-location --disable-pip-version-check --upgrade
-rm -f /tmp/hikka_requirements_termux.txt
+grep -vi '^psutil' requirements.txt > requirements.termux.txt
+run pip install -r requirements.termux.txt --no-cache-dir --no-warn-script-location --disable-pip-version-check --upgrade
+rm -f requirements.termux.txt
 ok "Requirements installed!"
 
 # ---- autostart ------------------------------------------------------------
