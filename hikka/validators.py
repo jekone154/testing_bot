@@ -401,6 +401,49 @@ class Link(Validator):
         return value
 
 
+class RandomLinkList(list):
+    """A list of links which stringifies to one randomly-chosen link"""
+
+    def __str__(self):
+        import random
+
+        if not self:
+            return ""
+        return str(random.choice(self))
+
+    def __bytes__(self):
+        return str(self).encode("utf-8")
+
+    def __repr__(self):
+        return super().__repr__()
+
+
+class RandomLink(Series):
+    """
+    A list of links, one of which is chosen at random every time the
+    value is used as a string (e.g. inserted into a banner_url-like field)
+    """
+
+    def __init__(self):
+        super().__init__(validator=Link(), min_len=1)
+        self.internal_id = "Series"
+        self.doc = {
+            "en": "A list of links, one of which will be chosen randomly",
+            "ru": "Список ссылок, одна из которых будет выбрана случайным образом",
+        }
+
+    @staticmethod
+    def _validate(value: ConfigAllowedTypes, /, **kwargs) -> RandomLinkList:
+        val_args = kwargs.copy()
+        if "validator" not in val_args:
+            val_args["validator"] = Link()
+        if "min_len" not in val_args:
+            val_args["min_len"] = 1
+
+        clean_list = Series._validate(value, **val_args)
+        return RandomLinkList(clean_list)
+
+
 class String(Validator):
     """
     Checks for length of passed value and automatically converts it to string
