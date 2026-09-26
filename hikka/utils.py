@@ -85,6 +85,8 @@ from hikkatl.tl.types import (
     MessageEntityUnderline,
     MessageEntityUnknown,
     MessageEntityUrl,
+    MessageMediaDocument,
+    MessageMediaPhoto,
     MessageMediaWebPage,
     PeerChannel,
     PeerChat,
@@ -1564,3 +1566,95 @@ def get_version_raw() -> str:
 
 
 get_platform_name = get_named_platform
+
+
+def format_file_size(size_bytes: int) -> str:
+    """
+    Format file size in bytes to a human-readable string
+    :param size_bytes: Size in bytes
+    :return: Formatted string (e.g. "1.5 MB")
+    """
+    if not size_bytes:
+        return "0 B"
+
+    size_names = ["B", "KB", "MB", "GB", "TB"]
+    size = float(size_bytes)
+    i = 0
+    while size >= 1024 and i < len(size_names) - 1:
+        size /= 1024.0
+        i += 1
+
+    return f"{size:.1f} {size_names[i]}"
+
+
+def safe_getattr(obj: typing.Any, attr: str, default: typing.Any = None) -> typing.Any:
+    """
+    Safely get an attribute from an object, returning `default` if it's
+    missing or accessing it raises
+    :param obj: Object to get the attribute from
+    :param attr: Attribute name
+    :param default: Value to return if the attribute is missing/unreadable
+    :return: Attribute value or `default`
+    """
+    try:
+        return getattr(obj, attr, default)
+    except Exception:
+        return default
+
+
+def extract_urls(text: str) -> typing.List[str]:
+    """
+    Extract all http(s) URLs from a string
+    :param text: Text to extract URLs from
+    :return: List of URLs, in the order they appear
+    """
+    return re.findall(r"https?://\S+", text or "")
+
+
+def has_media(message: Message) -> bool:
+    """
+    Check whether a message carries a photo, document or webpage-preview media
+    :param message: Message to check
+    :return: `True` if the message has media of one of these kinds
+    """
+    return isinstance(
+        getattr(message, "media", None),
+        (MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage),
+    )
+
+
+def get_args_bool(message: typing.Union[Message, str]) -> typing.List[bool]:
+    """
+    Parse a message's arguments as booleans (true/yes/1/on, false/no/0/off).
+    Arguments that don't match either set are skipped
+    :param message: Message or raw string to get arguments from
+    :return: List of parsed booleans
+    """
+    result = []
+    for arg in get_args(message):
+        lower_arg = arg.lower()
+        if lower_arg in {"true", "yes", "1", "on"}:
+            result.append(True)
+        elif lower_arg in {"false", "no", "0", "off"}:
+            result.append(False)
+
+    return result
+
+
+def get_disk_usage() -> typing.Dict[str, float]:
+    """
+    Get disk usage of the root filesystem
+    :return: Dict with `total`, `used`, `free` (in GB) and `percent`
+    """
+    try:
+        import psutil
+
+        disk = psutil.disk_usage("/")
+        return {
+            "total": round(disk.total / (1024**3), 2),
+            "used": round(disk.used / (1024**3), 2),
+            "free": round(disk.free / (1024**3), 2),
+            "percent": disk.percent,
+        }
+    except Exception:
+        return {"total": 0, "used": 0, "free": 0, "percent": 0}
