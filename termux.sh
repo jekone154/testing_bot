@@ -13,7 +13,7 @@ set -u
 REPO_URL="${HIKKA_REPO_URL:-https://github.com/jekone154/testing_bot.git}"
 REPO_BRANCH="${HIKKA_REPO_BRANCH:-master}"
 MIN_PYTHON_MAJOR=3
-MIN_PYTHON_MINOR=14
+MIN_PYTHON_MINOR=10
 INSTALL_DIR="$HOME/Hikka"
 # ------------------------------------------------------------------------
 
