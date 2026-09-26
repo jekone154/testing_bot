@@ -422,7 +422,7 @@ class TestMod(loader.Module):
             }
             try:
                 text = self.config["ping_custom_message"].format(**data)
-            except (KeyError, IndexError):
+            except Exception:
                 logger.exception("Missing placeholder in ping_custom_message")
                 text = "🚫 <b>Invalid ping_custom_message template</b>"
         else:
