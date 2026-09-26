@@ -60,7 +60,7 @@ Simply run this command out of <b>root</b> and follow the instructions of instal
 <hr>
 <h2 border="none"><img src="https://github.com/hikariatama/assets/raw/master/1312-micro-sd-card-flat.webp" height="54" align="middle"> Requirements</h2>
 <ul>
- <li>Python 3.14+</li>
+ <li>Python 3.10+</li>
  <li>API_ID and HASH from <a href="https://my.telegram.org/apps" color="#2594cb">Telegram</a></li>
 </ul>
 <hr>
