@@ -893,6 +893,24 @@ class ModuleConfig(dict):
     ):
         self._config[key].validator = validator
 
+    def get_category(self, key: str) -> typing.Optional[str]:
+        """Get the category of a config option, if any (None if uncategorized)"""
+        try:
+            return self._config[key].category
+        except KeyError:
+            return None
+
+    def grouped_options(self) -> typing.Dict[typing.Optional[str], typing.List[str]]:
+        """
+        Group config option names by their `category`.
+        Uncategorized options are grouped under the `None` key.
+        """
+        groups: typing.Dict[typing.Optional[str], typing.List[str]] = {}
+        for option, config in self._config.items():
+            groups.setdefault(getattr(config, "category", None), []).append(option)
+
+        return groups
+
 
 LibraryConfig = ModuleConfig
 
@@ -923,6 +941,7 @@ class ConfigValue:
     on_change: typing.Optional[
         typing.Union[typing.Callable[[], typing.Awaitable], typing.Callable]
     ] = None
+    category: typing.Optional[str] = None
 
     def __post_init__(self):
         if isinstance(self.value, _Placeholder):
