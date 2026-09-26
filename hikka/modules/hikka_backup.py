@@ -278,13 +278,18 @@ class HikkaBackupMod(loader.Module):
 
         archive.name = f"hikka-{datetime.datetime.now():%d-%m-%Y-%H-%M}.backup"
 
-        await utils.answer_file(
-            message,
+        # Sent to Saved Messages, not as a reply in the current chat: this
+        # archive bundles the *entire* database (security groups, module
+        # settings, potentially tokens some modules store there), same
+        # sensitivity level as backupdb -- which already only goes to "me".
+        await self._client.send_file(
+            "me",
             archive,
             caption=self.strings("backupall_info").format(
                 prefix=utils.escape_html(self.get_prefix())
             ),
         )
+        await utils.answer(message, self.strings("backup_sent"))
 
     @loader.command()
     async def restoreall(self, message: Message):
@@ -315,7 +320,14 @@ class HikkaBackupMod(loader.Module):
                     with zipfile.ZipFile(io.BytesIO(modzip_bytes.read())) as modzip:
                         with modzip.open("db_mods.json", "r") as modules:
                             db_mods = json.loads(modules.read().decode())
-                            if isinstance(db_mods, dict):
+                            if isinstance(db_mods, dict) and all(
+                                (
+                                    isinstance(key, str)
+                                    and isinstance(value, str)
+                                    and utils.check_url(value)
+                                )
+                                for key, value in db_mods.items()
+                            ):
                                 self.lookup("Loader").set("loaded_modules", db_mods)
 
                         for name in modzip.namelist():
