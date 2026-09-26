@@ -1,4 +1,4 @@
-FROM python:3.14-slim as python-base
+FROM python:3.13-slim as python-base
 ENV DOCKER=true
 ENV GIT_PYTHON_REFRESH=quiet
 
