@@ -29,7 +29,41 @@ if (
         sys.exit(1)
 
 
+def _is_termux() -> bool:
+    return "com.termux" in os.environ.get("PREFIX", "")
+
+
 def deps():
+    requirements_path = "requirements.txt"
+
+    if _is_termux():
+        # Upstream psutil refuses to build via pip on Android ("platform
+        # android is not supported" -- a hard check in its own setup.py,
+        # not a missing-compiler issue). On Termux it must come from
+        # `pkg install python-psutil` instead, so strip it here before
+        # calling pip -- otherwise this self-heal step fails on every
+        # single startup where pip decides psutil needs (re)installing.
+        try:
+            import psutil  # noqa: F401
+        except ImportError:
+            print(
+                "🚫 psutil is missing and cannot be installed via pip on "
+                "Termux/Android.\nRun this first, then restart Hikka:\n"
+                "    pkg install -y python-psutil"
+            )
+            sys.exit(1)
+
+        with open("requirements.txt", encoding="utf-8") as f:
+            lines = [
+                line
+                for line in f.readlines()
+                if not line.strip().lower().startswith("psutil")
+            ]
+
+        requirements_path = "requirements.termux.txt"
+        with open(requirements_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+
     subprocess.run(
         [
             sys.executable,
@@ -41,7 +75,7 @@ def deps():
             "--disable-pip-version-check",
             "--no-warn-script-location",
             "-r",
-            "requirements.txt",
+            requirements_path,
         ],
         check=True,
     )
