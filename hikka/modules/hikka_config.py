@@ -664,6 +664,7 @@ class HikkaConfigMod(loader.Module):
         config_opt: str,
         force_hidden: bool = False,
         obj_type: typing.Union[bool, str] = False,
+        category: typing.Optional[str] = None,
     ):
         module = self.lookup(mod)
         args = [
@@ -691,7 +692,7 @@ class HikkaConfigMod(loader.Module):
                             "text": self.strings("hide_value"),
                             "callback": self.inline__configure_option,
                             "args": (mod, config_opt, False),
-                            "kwargs": {"obj_type": obj_type},
+                            "kwargs": {"obj_type": obj_type, "category": category},
                         }
                     ]
                 ]
@@ -702,7 +703,7 @@ class HikkaConfigMod(loader.Module):
                             "text": self.strings("show_hidden"),
                             "callback": self.inline__configure_option,
                             "args": (mod, config_opt, True),
-                            "kwargs": {"obj_type": obj_type},
+                            "kwargs": {"obj_type": obj_type, "category": category},
                         }
                     ]
                 ]
@@ -815,7 +816,7 @@ class HikkaConfigMod(loader.Module):
                         "text": self.strings("back_btn"),
                         "callback": self.inline__configure,
                         "args": (mod,),
-                        "kwargs": {"obj_type": obj_type},
+                        "kwargs": {"obj_type": obj_type, "category": category},
                     },
                     {"text": self.strings("close_btn"), "action": "close"},
                 ],
@@ -827,34 +828,48 @@ class HikkaConfigMod(loader.Module):
         call: InlineCall,
         mod: str,
         obj_type: typing.Union[bool, str] = False,
+        category: typing.Optional[str] = None,
+        page: int = 0,
     ):
-        btns = [
-            {
-                "text": param,
-                "callback": self.inline__configure_option,
-                "args": (mod, param),
-                "kwargs": {"obj_type": obj_type},
-            }
-            for param in self.lookup(mod).config
-        ]
+        config = self.lookup(mod).config
+        groups = config.grouped_options()
+        categories = sorted(cat for cat in groups if cat)
 
-        await call.edit(
-            self.strings(
-                "configuring_mod" if isinstance(obj_type, bool) else "configuring_lib"
-            ).format(
-                utils.escape_html(mod),
-                "\n".join(
+        # No categories defined for this module -> flat legacy view (unchanged
+        # behavior for every module that doesn't use ConfigValue(category=...))
+        if not categories:
+            keys = list(config)
+        elif category is None:
+            # Show the category picker, plus any uncategorized options directly
+            kb = list(
+                utils.chunks(
                     [
-                        "▫️ <code>{}</code>: <b>{}</b>".format(
-                            utils.escape_html(key),
-                            self._get_value(mod, key),
-                        )
-                        for key in self.lookup(mod).config
-                    ]
-                ),
-            ),
-            reply_markup=list(utils.chunks(btns, 2))
-            + [
+                        {
+                            "text": f"📁 {cat}",
+                            "callback": self.inline__configure,
+                            "args": (mod,),
+                            "kwargs": {"obj_type": obj_type, "category": cat},
+                        }
+                        for cat in categories
+                    ],
+                    2,
+                )
+            )
+            kb += list(
+                utils.chunks(
+                    [
+                        {
+                            "text": param,
+                            "callback": self.inline__configure_option,
+                            "args": (mod, param),
+                            "kwargs": {"obj_type": obj_type},
+                        }
+                        for param in groups.get(None, [])
+                    ],
+                    2,
+                )
+            )
+            kb += [
                 [
                     {
                         "text": self.strings("back_btn"),
@@ -863,7 +878,87 @@ class HikkaConfigMod(loader.Module):
                     },
                     {"text": self.strings("close_btn"), "action": "close"},
                 ]
-            ],
+            ]
+
+            await call.edit(
+                self.strings(
+                    "configuring_mod"
+                    if isinstance(obj_type, bool)
+                    else "configuring_lib"
+                ).format(
+                    utils.escape_html(mod),
+                    "\n".join(
+                        [
+                            "▫️ <code>{}</code>: <b>{}</b>".format(
+                                utils.escape_html(key),
+                                self._get_value(mod, key),
+                            )
+                            for key in config
+                        ]
+                    ),
+                ),
+                reply_markup=kb,
+            )
+            return
+        else:
+            keys = groups.get(category, [])
+
+        btns = [
+            {
+                "text": param,
+                "callback": self.inline__configure_option,
+                "args": (mod, param),
+                "kwargs": {"obj_type": obj_type, "category": category},
+            }
+            for param in keys[page * NUM_ROWS * ROW_SIZE : (page + 1) * NUM_ROWS * ROW_SIZE]
+        ]
+
+        kb = list(utils.chunks(btns, 2))
+
+        if len(keys) > NUM_ROWS * ROW_SIZE:
+            kb += self.inline.build_pagination(
+                callback=functools.partial(
+                    self.inline__configure,
+                    mod=mod,
+                    obj_type=obj_type,
+                    category=category,
+                ),
+                total_pages=ceil(len(keys) / (NUM_ROWS * ROW_SIZE)),
+                current_page=page + 1,
+            )
+
+        kb += [
+            [
+                {
+                    "text": self.strings("back_btn"),
+                    "callback": (
+                        self.inline__configure
+                        if categories
+                        else self.inline__global_config
+                    ),
+                    "args": (mod,) if categories else (),
+                    "kwargs": {"obj_type": obj_type},
+                },
+                {"text": self.strings("close_btn"), "action": "close"},
+            ]
+        ]
+
+        await call.edit(
+            self.strings(
+                "configuring_mod" if isinstance(obj_type, bool) else "configuring_lib"
+            ).format(
+                utils.escape_html(f"{mod} / {category}" if category else mod),
+                "\n".join(
+                    [
+                        "▫️ <code>{}</code>: <b>{}</b>".format(
+                            utils.escape_html(key),
+                            self._get_value(mod, key),
+                        )
+                        for key in keys
+                    ]
+                ),
+            ),
+            reply_markup=kb,
         )
 
     async def inline__choose_category(self, call: typing.Union[Message, InlineCall]):
@@ -966,48 +1061,73 @@ class HikkaConfigMod(loader.Module):
 
     @loader.command(alias="cfg")
     async def configcmd(self, message: Message):
-        args = utils.get_args_raw(message)
-        if self.lookup(args) and hasattr(self.lookup(args), "config"):
+        raw = utils.get_args_raw(message)
+        args = raw.split(maxsplit=1)
+        mod_name = args[0] if args else ""
+
+        if self.lookup(mod_name) and hasattr(self.lookup(mod_name), "config"):
             form = await self.inline.form("🌘", message, silent=True)
-            mod = self.lookup(args)
+            mod = self.lookup(mod_name)
             if isinstance(mod, loader.Library):
                 type_ = "library"
             else:
                 type_ = mod.__origin__.startswith("<core")
 
-            await self.inline__configure(form, args, obj_type=type_)
+            if len(args) > 1 and args[1] in mod.config:
+                await self.inline__configure_option(
+                    form, mod_name, args[1], obj_type=type_
+                )
+            else:
+                await self.inline__configure(form, mod_name, obj_type=type_)
             return
 
         await self.inline__choose_category(message)
 
     @loader.command(alias="fcfg")
     async def fconfig(self, message: Message):
-        args = utils.get_args_raw(message).split(maxsplit=2)
+        raw = utils.get_args_raw(message)
+        reply = await message.get_reply_message()
+        reply_text = reply.raw_text if reply and reply.raw_text else None
 
-        if len(args) < 3:
-            await utils.answer(message, self.strings("args"))
-            return
+        parts = [part.strip() for part in raw.split("&&") if part.strip()] or [raw]
+        results = []
 
-        mod, option, value = args
+        for part in parts:
+            args = part.split(maxsplit=2)
 
-        if not (instance := self.lookup(mod)):
-            await utils.answer(message, self.strings("no_mod"))
-            return
+            if len(args) == 2 and reply_text is not None:
+                mod, option = args
+                value = reply_text
+            elif len(args) >= 3:
+                mod, option, value = args[0], args[1], args[2]
+            else:
+                await utils.answer(message, self.strings("args"))
+                return
 
-        if option not in instance.config:
-            await utils.answer(message, self.strings("no_option"))
-            return
+            if not (instance := self.lookup(mod)):
+                await utils.answer(message, self.strings("no_mod"))
+                return
 
-        instance.config[option] = value
-        await utils.answer(
-            message,
-            self.strings(
-                "option_saved"
-                if isinstance(instance, loader.Module)
-                else "option_saved_lib"
-            ).format(
-                utils.escape_html(option),
-                utils.escape_html(mod),
-                self._get_value(mod, option),
-            ),
-        )
+            if option not in instance.config:
+                await utils.answer(message, self.strings("no_option"))
+                return
+
+            try:
+                instance.config[option] = value
+            except loader.validators.ValidationError as e:
+                await utils.answer(message, self.strings("validation_error").format(e.args[0]))
+                return
+
+            results.append(
+                self.strings(
+                    "option_saved"
+                    if isinstance(instance, loader.Module)
+                    else "option_saved_lib"
+                ).format(
+                    utils.escape_html(option),
+                    utils.escape_html(mod),
+                    self._get_value(mod, option),
+                )
+            )
+
+        await utils.answer(message, "\n\n".join(results))
